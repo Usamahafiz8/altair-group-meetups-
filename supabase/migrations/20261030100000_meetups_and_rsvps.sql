@@ -99,10 +99,11 @@ create trigger meetups_set_updated_at
 
 -- Meetup invariants on insert and update.
 --
--- Future start: always on insert. On update, only when starts_at changes and
--- the writer is an app user (role "authenticated"); test setup and owner
--- maintenance may move a meetup into the past to simulate a started meetup,
--- which the spec allows ("insert or update one directly as the database owner").
+-- Future start: always on insert. On update, whenever starts_at changes,
+-- except for the database owner / service role: test setup may move a
+-- meetup into the past to simulate a started one, which the spec allows
+-- ("insert or update one directly as the database owner"). Every app or
+-- endpoint role (authenticated, meetup_writer, ...) is held to the rule.
 create function public.tg_meetups_integrity()
 returns trigger
 language plpgsql
@@ -151,7 +152,7 @@ begin
   end if;
 
   if new.starts_at is distinct from old.starts_at
-     and current_user = 'authenticated'
+     and current_user not in ('postgres', 'supabase_admin', 'service_role')
      and new.starts_at <= now() then
     raise exception 'starts_at must be in the future'
       using errcode = 'check_violation';
@@ -192,11 +193,13 @@ begin
     raise exception 'meetup not found' using errcode = 'foreign_key_violation';
   end if;
 
+  -- A non-member gets exactly the same error as for a meetup that does not
+  -- exist, so an RSVP attempt is not an oracle for "this meetup id is real".
   if not exists (
     select 1 from public.group_memberships gm
     where gm.group_id = m.group_id and gm.user_id = new.user_id
   ) then
-    raise exception 'only group members can RSVP' using errcode = 'check_violation';
+    raise exception 'meetup not found' using errcode = 'foreign_key_violation';
   end if;
 
   if m.status = 'cancelled' then
