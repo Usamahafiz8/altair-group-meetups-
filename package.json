@@ -1,0 +1,14 @@
+{
+  "name": "altair-meetups",
+  "private": true,
+  "description": "Altair group meetups slice: Supabase migrations, shared Zod contract, write server, Expo app, access tests.",
+  "workspaces": [
+    "packages/*",
+    "server",
+    "app",
+    "tests"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
