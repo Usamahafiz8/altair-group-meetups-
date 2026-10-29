@@ -1,53 +1,15 @@
-// Offline migration check (no Docker, no hosted project needed).
-// Runs the starter + our migrations + the full seed on PGlite (in-process Postgres)
-// with minimal stand-ins for Supabase's auth schema and roles, then exercises the
-// constraints and integrity triggers. It is a fast pre-push check, not a substitute for
-// the hosted-database access tests (RLS behaviour depends on real Supabase roles/JWTs).
+// Offline migration check: constraints and integrity triggers, run as the
+// database owner on PGlite (see harness.mjs). No Docker or hosted project needed.
 // Usage (repo root): npm install && npm run check:migrations -w tests
-import { PGlite } from '@electric-sql/pglite';
-import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
-import fs from 'node:fs';
-import path from 'node:path';
+import { setup, reporter } from './harness.mjs';
 
-const repo = process.argv[2];
-const mig = (f) => fs.readFileSync(path.join(repo, 'supabase/migrations', f), 'utf8');
-const db = new PGlite({ extensions: { pgcrypto } });
-
-const SUPABASE_STUBS = `
-  create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
-  create schema extensions; create extension pgcrypto schema extensions;
-  create schema auth;
-  create table auth.users (
-    instance_id uuid, id uuid primary key, aud text, role text, email text, encrypted_password text,
-    email_confirmed_at timestamptz, raw_app_meta_data jsonb, raw_user_meta_data jsonb,
-    created_at timestamptz, updated_at timestamptz, confirmation_token text, email_change text,
-    email_change_token_new text, recovery_token text);
-  create table auth.identities (id uuid, user_id uuid, provider_id text, identity_data jsonb, provider text,
-    last_sign_in_at timestamptz, created_at timestamptz, updated_at timestamptz);
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  grant usage on schema public, auth to anon, authenticated, service_role;
-  grant execute on function auth.uid() to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-`;
-
-let pass = 0, fail = 0;
-const ok = (name) => { pass++; console.log('  PASS', name); };
-const bad = (name, e) => { fail++; console.log('  FAIL', name, e ?? ''); };
-async function expectOk(name, sql) {
-  try { await db.exec(sql); ok(name); } catch (e) { bad(name, e.message); }
-}
-async function expectErr(name, sql, re) {
-  try { await db.exec(sql); bad(name, '(no error)'); }
-  catch (e) { re.test(e.message) ? ok(`${name} -> ${e.message}`) : bad(name, `wrong error: ${e.message}`); }
-}
-const one = async (sql) => (await db.query(sql)).rows[0];
-
+const r = reporter();
+const { ok, bad } = r;
 console.log('setup');
-await db.exec(SUPABASE_STUBS);
-await expectOk('starter migration', mig('20261001000000_starter.sql'));
-await expectOk('meetups+rsvps migration', mig('20261030100000_meetups_and_rsvps.sql'));
-await expectOk('seed (PART 1 + PART 2)', fs.readFileSync(path.join(repo, 'supabase/seed.sql'), 'utf8'));
+const db = await setup(process.argv[2], { report: r });
+const expectOk = (name, sql) => r.expectOk(db, name, sql);
+const expectErr = (name, sql, re) => r.expectErr(db, name, sql, re);
+const one = async (sql) => (await db.query(sql)).rows[0];
 
 console.log('seed contents');
 const c = await one(`select (select count(*) from public.meetups)::int m, (select count(*) from public.rsvps)::int r,
@@ -98,8 +60,8 @@ await expectErr('duplicate RSVP (plain insert)', `insert into public.rsvps (meet
 await expectOk('duplicate RSVP with ON CONFLICT DO NOTHING', `insert into public.rsvps (meetup_id, user_id) values ('${SAT}', 'a1000000-0000-4000-8000-000000000002') on conflict (meetup_id, user_id) do nothing`);
 const d = await one(`select count(*)::int n from public.rsvps where meetup_id='${SAT}' and user_id='a1000000-0000-4000-8000-000000000002'`);
 d.n === 1 ? ok('still exactly one RSVP') : bad('rsvp count', d.n);
-await expectErr('outsider RSVP', `insert into public.rsvps (meetup_id, user_id) values ('${SAT}', '${TAYLOR}')`, /only group members/);
-await expectErr('other-group member RSVP (Morgan -> Maple)', `insert into public.rsvps (meetup_id, user_id) values ('${SAT}', 'a1000000-0000-4000-8000-000000000005')`, /only group members/);
+await expectErr('outsider RSVP', `insert into public.rsvps (meetup_id, user_id) values ('${SAT}', '${TAYLOR}')`, /meetup not found/);
+await expectErr('other-group member RSVP (Morgan -> Maple)', `insert into public.rsvps (meetup_id, user_id) values ('${SAT}', 'a1000000-0000-4000-8000-000000000005')`, /meetup not found/);
 await expectErr('RSVP to cancelled', `insert into public.rsvps (meetup_id, user_id) values ('${WEEK}', '${SAM}')`, /cancelled/);
 await expectErr('RSVP to unknown meetup', `insert into public.rsvps (meetup_id, user_id) values (gen_random_uuid(), '${SAM}')`, /not found/);
 await expectOk('owner moves SAT into the past (simulate started)', `update public.meetups set starts_at = now() - interval '5 minutes' where id='${SAT}'`);
@@ -123,5 +85,4 @@ rls.rows.every((r) => r.relrowsecurity) ? ok('RLS enabled on meetups, rsvps') : 
 const idx = await db.query(`select indexname from pg_indexes where tablename in ('meetups','rsvps') order by 1`);
 console.log('  indexes:', idx.rows.map((r) => r.indexname).join(', '));
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+r.done();

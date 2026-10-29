@@ -59,13 +59,19 @@ altair-meetups/
 4. Seed copied verbatim to `supabase/seed.sql` (verified with `cmp`).
 5. Root `package.json` (npm workspaces), `.gitignore`, `.env.example`.
 
-## Pending (needs the hosted project)
+## Hosted project status (2026-10-30)
 
-- [ ] `.env` filled in by the developer
-- [ ] `npx supabase link --project-ref $SUPABASE_PROJECT_REF`
-- [ ] `npx supabase db push` (applies the starter)
-- [ ] Seed PART 1 in the SQL editor
-- [ ] Sign-in smoke test (curl `/auth/v1/token?grant_type=password` as sam@example.test)
+- [x] `.env` created (gitignored; `.env.example` holds placeholders only)
+- [x] Direct DB host `db.<ref>.supabase.co` is **IPv6-only** on the free tier and does not resolve from
+      this machine, so `DATABASE_URL` uses the **Session pooler** (IPv4):
+      `postgresql://postgres.<ref>:<url-encoded-password>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres`
+- [x] `npx supabase@2.122.0 db push --db-url "$DATABASE_URL" --include-seed` applied all migrations and the
+      seed (no `supabase link` / access token needed). Server: Postgres 17.11.
+- [x] Remote state verified: 3 scheduled upcoming meetups (2/1/0 RSVPs), 9 policies, 3 migrations recorded.
+- [x] `npm run check:access:remote -w tests`: 77/77 on the hosted DB (rolled back).
+- [ ] Anon key + service role key in `.env`, then the sign-in smoke test (curl as sam@example.test)
+
+Note: pushed migrations are immutable from here; changes go in new migration files.
 
 ## Known environment risk
 
