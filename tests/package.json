@@ -1,0 +1,11 @@
+{
+  "name": "@altair/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:migrations": "node offline/migrations.check.mjs .."
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}
