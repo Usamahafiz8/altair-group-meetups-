@@ -53,7 +53,7 @@ altair-meetups/
 
 ## Setup steps completed in Phase 0
 
-1. `git init -b main` in `altair-meetups/` (no commits yet — awaiting approval).
+1. `git init -b main` in `altair-meetups/`.
 2. `npx supabase@2.122.0 init` → `supabase/config.toml`, `supabase/.gitignore`.
 3. Starter SQL copied verbatim to `supabase/migrations/20261001000000_starter.sql` (verified with `cmp`).
 4. Seed copied verbatim to `supabase/seed.sql` (verified with `cmp`).
@@ -69,7 +69,8 @@ altair-meetups/
       seed (no `supabase link` / access token needed). Server: Postgres 17.11.
 - [x] Remote state verified: 3 scheduled upcoming meetups (2/1/0 RSVPs), 9 policies, 3 migrations recorded.
 - [x] `npm run check:access:remote -w tests`: 77/77 on the hosted DB (rolled back).
-- [ ] Anon key + service role key in `.env`, then the sign-in smoke test (curl as sam@example.test)
+- [x] Anon key + service role key in `.env`; sign-in smoke test as sam@example.test returns an `access_token`
+- [x] `npm run check:postgrest -w tests`: 28/28 through the real REST API with real JWTs
 
 Note: pushed migrations are immutable from here; changes go in new migration files.
 

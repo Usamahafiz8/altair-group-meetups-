@@ -91,6 +91,7 @@ policy uses only the definer helper.
 | `npm run check:migrations -w tests` | PGlite, offline | 42/42 |
 | `npm run check:access -w tests` | PGlite, offline | 77/77 |
 | `npm run check:access:remote -w tests` | **hosted Supabase (PG 17.11)**, one transaction rolled back | 77/77 |
+| `npm run check:postgrest -w tests` | **hosted REST API with real seed-account JWTs** (anon, outsider, member, multi-group; home-location probes incl. embedded `users(*)`; direct REST writes incl. creator cancel → 403; `private` schema not exposed) | 28/28 |
 
 Personas covered: anon; outsider (Taylor); group-scoped outsiders (Morgan, Quinn); member not RSVP'd
 (Sam); member RSVP'd (Jordan); creator (Avery, Sam); multi-group (Riley).
@@ -102,6 +103,5 @@ Personas covered: anon; outsider (Taylor); group-scoped outsiders (Morgan, Quinn
 - **Endpoint holds owner credentials** (`DATABASE_URL`, server-only). It immediately drops to
   `meetup_writer` per transaction. Hardening: a dedicated login role whose only membership is
   `meetup_writer`.
-- **PostgREST path** (real JWTs through the API) is verified in Phase 5 once the anon key is in `.env`.
 - **Session log contains the database password** (it was pasted into a tracked file and read during the
   session). Rotate the database password before submitting the log.

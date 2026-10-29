@@ -6,7 +6,8 @@
     "check:migrations": "node offline/migrations.check.mjs ..",
     "check:access": "node offline/access.check.mjs ..",
     "check:offline": "npm run check:migrations && npm run check:access",
-    "check:access:remote": "node --env-file=../.env offline/access.check.mjs .. --remote"
+    "check:access:remote": "node --env-file=../.env offline/access.check.mjs .. --remote",
+    "check:postgrest": "node --env-file=../.env offline/postgrest.check.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",

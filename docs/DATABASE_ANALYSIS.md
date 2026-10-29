@@ -57,8 +57,9 @@ A policy on `group_memberships` like "you can see memberships of groups you belo
 
 ## Hosted-environment implications
 
-- `supabase/seed.sql` is only auto-run by `supabase db reset` (local). On hosted, seed PART 1 is run once in
-  the SQL editor (or via `psql`), and PART 2 after our migrations.
+- `supabase/seed.sql` is auto-run by `supabase db reset` (local). On hosted we run
+  `supabase db push --db-url "$DATABASE_URL" --include-seed`, which applies the migrations and then the
+  whole seed (PART 1 + PART 2) in one step.
 - Hosted DB cannot be reset freely, so tests must create and clean up their own fixtures rather than rely
   on a reset between runs.
 
@@ -141,7 +142,8 @@ rejected; duplicate RSVP unique + `on conflict do nothing` leaves one; outsider 
 rejected; RSVP to cancelled / started / unknown meetup rejected; RSVPs not updatable; withdraw allowed on a
 cancelled meetup; group deletion cascades; RLS enabled on both tables.
 
-Hosted verification (`supabase db push` + seed) is pending the project `.env`.
+Hosted verification: migrations + seed pushed to the hosted project (Postgres 17.11); seed state confirmed
+(3 scheduled upcoming meetups with 2/1/0 RSVPs).
 
 ## Rollback / recovery
 
