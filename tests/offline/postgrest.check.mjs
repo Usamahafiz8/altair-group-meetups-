@@ -44,14 +44,18 @@ r.check('rsvps: []', (await rest(taylor, 'rsvps?select=*')).text === '[]');
 r.check('groups: []', (await rest(taylor, 'groups?select=*')).text === '[]');
 
 console.log('member Sam');
-const samMeetups = await rest(sam, 'meetups?select=id,title,status,starts_at,meeting_point_name,meeting_point_lat,meeting_point_lng&order=starts_at');
-r.check('sees 2 Maple meetups soonest first', samMeetups.json?.length === 2 && samMeetups.json[0].id === SAT);
+const samMeetups = await rest(sam, 'meetups?select=id,group_id,title,status,starts_at,meeting_point_name,meeting_point_lat,meeting_point_lng&order=starts_at');
+// Seed reads assert access properties, not exact rows (real app use adds meetups / RSVPs).
+const samIds = samMeetups.json?.map((m) => m.id) ?? [];
+r.check('sees Maple meetups only, seed ones soonest first', samMeetups.json?.every((m) => m.group_id === 'b2000000-0000-4000-8000-000000000001') && samIds.indexOf(SAT) > -1 && samIds.indexOf(SAT) < samIds.indexOf('c3000000-0000-4000-8000-000000000002'));
 const att = await rest(sam, `rsvps?meetup_id=eq.${SAT}&select=user_id,users(display_name)`);
-r.check('SAT attendees via embedded users(display_name)', JSON.stringify(att.json?.map((a) => a.users.display_name).sort()) === '["Jordan Price","Riley Chen"]');
+const attNames = att.json?.map((a) => a.users.display_name) ?? [];
+r.check('SAT attendees via embedded users(display_name)', attNames.includes('Jordan Price') && attNames.includes('Riley Chen'));
 r.check('my groups = Maple', (await rest(sam, 'groups?select=name')).text === '[{"name":"Maple Street Walkers"}]');
 
 console.log('multi-group Riley');
-r.check('sees 3 meetups across both groups', (await rest(riley, 'meetups?select=id')).json?.length === 3);
+const rileyMs = (await rest(riley, 'meetups?select=id,group_id')).json ?? [];
+r.check('sees the seed meetups of both groups, nothing outside them', rileyMs.every((m) => ['b2000000-0000-4000-8000-000000000001', 'b2000000-0000-4000-8000-000000000002'].includes(m.group_id)) && [SAT, 'c3000000-0000-4000-8000-000000000002', 'c3000000-0000-4000-8000-000000000003'].every((id) => rileyMs.some((m) => m.id === id)));
 r.check('my groups = 2', (await rest(riley, 'groups?select=id')).json?.length === 2);
 
 console.log('home location');

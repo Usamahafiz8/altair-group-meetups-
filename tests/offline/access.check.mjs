@@ -53,18 +53,27 @@ r.check('users: only self', JSON.stringify(await rows(app('taylor'), 'select id 
 r.check('map data for SAT: none', (await count(app('taylor'), `select meeting_point_lat, meeting_point_lng from public.meetups where id = '${SAT}'`)) === 0);
 
 console.log('group-scoped outsider (Morgan, Riverside only) reads nothing of Maple');
-r.check('sees only Riverside meetup', JSON.stringify(await rows(app('morgan'), 'select id from public.meetups')) === JSON.stringify([{ id: RIV }]));
+// Seed reads assert access properties, not exact rows: on the hosted DB, real
+// use of the app adds meetups and RSVPs.
+const onlyGroups = (ms, groups) => ms.every((m) => groups.includes(m.group_id));
+const ids = (ms) => ms.map((m) => m.id);
+const morganMs = await rows(app('morgan'), 'select id, group_id from public.meetups');
+r.check('sees only Riverside meetups (incl. the seed one), nothing of Maple',
+  onlyGroups(morganMs, [RIVER]) && ids(morganMs).includes(RIV) && !ids(morganMs).includes(SAT));
 r.check('no SAT attendees', (await count(app('morgan'), `select * from public.rsvps where meetup_id = '${SAT}'`)) === 0);
 
 console.log('member not RSVPd (Sam) / RSVPd (Jordan) / creator (Avery) — meetup, attendees, exact point');
 for (const who of ['sam', 'jordan', 'avery']) {
-  const ms = await rows(app(who), 'select id, status, meeting_point_name, meeting_point_lat, meeting_point_lng from public.meetups order by starts_at');
-  r.check(`${who}: sees both Maple meetups, soonest first`, JSON.stringify(ms.map((m) => m.id)) === JSON.stringify([SAT, WEEK]));
+  const ms = await rows(app(who), 'select id, group_id, status, meeting_point_name, meeting_point_lat, meeting_point_lng from public.meetups order by starts_at');
+  r.check(`${who}: sees Maple meetups only, both seed ones, soonest first`,
+    onlyGroups(ms, [MAPLE]) && ids(ms).indexOf(SAT) > -1 && ids(ms).indexOf(SAT) < ids(ms).indexOf(WEEK));
   const sat = ms.find((m) => m.id === SAT);
   r.check(`${who}: SAT exact point + name (decision: exact for all members)`,
     sat.meeting_point_name === 'North gate, Linden Park' && sat.meeting_point_lat === 40.012046 && sat.meeting_point_lng === -99.984517);
   const att = await rows(app(who), `select r.user_id, u.display_name from public.rsvps r join public.users u on u.id = r.user_id where r.meetup_id = '${SAT}' order by u.display_name`);
-  r.check(`${who}: SAT attendees = Jordan, Riley`, JSON.stringify(att.map((a) => a.display_name)) === '["Jordan Price","Riley Chen"]');
+  const names = att.map((a) => a.display_name);
+  r.check(`${who}: SAT attendees include Jordan and Riley (display names only)`,
+    names.includes('Jordan Price') && names.includes('Riley Chen') && att.every((a) => Object.keys(a).sort().join() === 'display_name,user_id'));
 }
 r.check('sam: co-member names only (4 Maple members)', (await count(app('sam'), 'select id, display_name from public.users')) === 4);
 r.check('sam: my groups = Maple', JSON.stringify(await rows(app('sam'), 'select id from public.groups')) === JSON.stringify([{ id: MAPLE }]));
@@ -72,13 +81,17 @@ r.check('sam: only own membership rows', (await count(app('sam'), 'select * from
 
 console.log('multi-group (Riley: Maple + Riverside, RSVPd to SAT only)');
 const rileyMs = await rows(app('riley'), 'select id, group_id, meeting_point_lat, meeting_point_lng from public.meetups order by starts_at');
-r.check('sees all 3 meetups across both groups', rileyMs.length === 3);
+r.check('sees the seed meetups of both groups, nothing outside them',
+  onlyGroups(rileyMs, [MAPLE, RIVER]) && [SAT, WEEK, RIV].every((id) => ids(rileyMs).includes(id)));
 r.check('my groups = 2', (await count(app('riley'), 'select * from public.groups')) === 2);
 r.check('map data: exact point for each meetup per decision, incl. non-RSVPd WEEK and RIV',
   rileyMs.every((m) => typeof m.meeting_point_lat === 'number' && typeof m.meeting_point_lng === 'number'));
-r.check('attendees visible across both groups (SAT 2 + RIV 1)', (await count(app('riley'), 'select * from public.rsvps')) === 3);
+r.check('attendees visible across both groups (SAT and RIV)',
+  (await count(app('riley'), `select * from public.rsvps where meetup_id = '${SAT}'`)) >= 2 &&
+  (await count(app('riley'), `select * from public.rsvps where meetup_id = '${RIV}'`)) >= 1);
+const quinnMs = await rows(app('quinn'), 'select id, group_id from public.meetups');
 r.check('Quinn (Riverside) still cannot see Maple even though Riley bridges groups',
-  JSON.stringify(await rows(app('quinn'), 'select id from public.meetups')) === JSON.stringify([{ id: RIV }]));
+  onlyGroups(quinnMs, [RIVER]) && ids(quinnMs).includes(RIV) && !ids(quinnMs).includes(SAT));
 r.check('Quinn sees Riley (co-member) but not Avery', JSON.stringify((await rows(app('quinn'), 'select display_name from public.users order by 1')).map((x) => x.display_name)) === '["Casey Moreno","Morgan Ellis","Quinn Adler","Riley Chen"]');
 
 console.log('home location never readable');

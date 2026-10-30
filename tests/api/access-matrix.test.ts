@@ -167,10 +167,31 @@ describe('spec section 6 matrix — direct REST API with each member\'s own sess
   });
 });
 
-describe('multi-group member (Riley: Maple + Riverside, RSVPd to "Saturday morning loop" only)', () => {
-  it('my groups: exactly the two groups', async () => {
+// Riley's situation from the spec, built from fixtures so real use of the app
+// cannot change it: RSVP'd to one Maple meetup (A), not to another (B), and a
+// member of Riverside with a meetup there (C). Distinct points per meetup.
+describe('multi-group member (Riley: Maple + Riverside, RSVPd to one Maple meetup only)', () => {
+  const P = {
+    A: { name: 'North gate, Linden Park', lat: 40.012046, lng: -99.984517 },
+    B: { name: 'Front steps, Elm Avenue Library', lat: 40.003318, lng: -99.979762 },
+    C: { name: 'Boathouse lot, Riverside Path', lat: 39.985239, lng: -100.009683 },
+  };
+  let A: string, B: string, C: string;
+  beforeAll(async () => {
+    A = await fixtureMeetup({ creator: 'avery', rsvps: ['jordan', 'riley'], place: P.A, title: '[test] riley A' });
+    B = await fixtureMeetup({ creator: 'jordan', place: P.B, title: '[test] riley B' });
+    C = await fixtureMeetup({ creator: 'morgan', group: G.riverside, rsvps: ['casey'], place: P.C, title: '[test] riley C' });
+  });
+
+  it('my groups: exactly the two groups; the seed Riley sees the seed meetups of both, nothing else', async () => {
     const r = await api('riley', 'GET', '/groups');
     expect(r.body.groups.map((g: { id: string }) => g.id).sort()).toEqual([G.maple, G.riverside]);
+    const all = [
+      ...ListMeetupsResponse.parse((await api('riley', 'GET', `/groups/${G.maple}/meetups`)).body).meetups,
+      ...ListMeetupsResponse.parse((await api('riley', 'GET', `/groups/${G.riverside}/meetups`)).body).meetups,
+    ];
+    expect(all.every((m) => m.groupId === G.maple || m.groupId === G.riverside)).toBe(true);
+    expect(all.map((m) => m.id)).toEqual(expect.arrayContaining([M.saturday, M.weeknight, M.riverside]));
   });
 
   it('map data per meetup follows Riley\'s own status in that meetup', async () => {
@@ -180,19 +201,18 @@ describe('multi-group member (Riley: Maple + Riverside, RSVPd to "Saturday morni
     const byId = Object.fromEntries([...maple, ...river].map((m) => [m.id, m]));
 
     // RSVP'd: exact point
-    expect(byId[M.saturday]!.viewer.hasRsvp).toBe(true);
-    expect(byId[M.saturday]!.meetingPoint).toEqual({ kind: 'exact', name: 'North gate, Linden Park', lat: 40.012046, lng: -99.984517 });
-    // Not RSVP'd, same group: the member view (exact, per decision); RSVP to Saturday grants nothing here
-    expect(byId[M.weeknight]!.viewer.hasRsvp).toBe(false);
-    expect(byId[M.weeknight]!.viewer.canRsvp).toBe(true);
-    expect(byId[M.weeknight]!.meetingPoint).toEqual({ kind: 'exact', name: 'Front steps, Elm Avenue Library', lat: 40.003318, lng: -99.979762 });
+    expect(byId[A]!.viewer.hasRsvp).toBe(true);
+    expect(byId[A]!.meetingPoint).toEqual({ kind: 'exact', ...P.A });
+    // Not RSVP'd, same group: the member view (exact, per decision); the RSVP to A grants nothing here
+    expect(byId[B]!.viewer).toMatchObject({ hasRsvp: false, canRsvp: true });
+    expect(byId[B]!.meetingPoint).toEqual({ kind: 'exact', ...P.B });
     // Not RSVP'd, other group: the member view of that group
-    expect(byId[M.riverside]!.viewer.hasRsvp).toBe(false);
-    expect(byId[M.riverside]!.meetingPoint).toEqual({ kind: 'exact', name: 'Boathouse lot, Riverside Path', lat: 39.985239, lng: -100.009683 });
+    expect(byId[C]!.viewer.hasRsvp).toBe(false);
+    expect(byId[C]!.meetingPoint).toEqual({ kind: 'exact', ...P.C });
   });
 
   it('Riley\'s map data for a meetup equals what any other member of that group gets (no cross-group bonus)', async () => {
-    for (const [id, peer] of [[M.weeknight, 'sam'], [M.riverside, 'quinn']] as const) {
+    for (const [id, peer] of [[B, 'sam'], [C, 'quinn']] as const) {
       const riley = MeetupResponse.parse((await api('riley', 'GET', `/meetups/${id}`)).body).meetup;
       const other = MeetupResponse.parse((await api(peer, 'GET', `/meetups/${id}`)).body).meetup;
       expect(riley.meetingPoint).toEqual(other.meetingPoint);
@@ -201,8 +221,8 @@ describe('multi-group member (Riley: Maple + Riverside, RSVPd to "Saturday morni
   });
 
   it('Riley bridging both groups opens nothing between them', async () => {
-    expect((await api('quinn', 'GET', `/meetups/${M.saturday}`)).status).toBe(404); // Riverside member, Maple meetup
-    expect((await api('sam', 'GET', `/meetups/${M.riverside}`)).status).toBe(404); // Maple member, Riverside meetup
+    expect((await api('quinn', 'GET', `/meetups/${A}`)).status).toBe(404); // Riverside member, Maple meetup
+    expect((await api('sam', 'GET', `/meetups/${C}`)).status).toBe(404); // Maple member, Riverside meetup
     expect((await api('casey', 'GET', `/groups/${G.maple}/meetups`)).status).toBe(404); // RSVP'd in Riverside, still nothing in Maple
   });
 
@@ -211,9 +231,9 @@ describe('multi-group member (Riley: Maple + Riverside, RSVPd to "Saturday morni
     expect((await api('riley', 'POST', `/meetups/${R}/rsvp`)).status).toBe(200);
     const river = ListMeetupsResponse.parse((await api('riley', 'GET', `/groups/${G.riverside}/meetups`)).body).meetups;
     expect(river.find((m) => m.id === R)!.viewer.hasRsvp).toBe(true);
-    expect(river.find((m) => m.id === M.riverside)!.viewer.hasRsvp).toBe(false);
+    expect(river.find((m) => m.id === C)!.viewer.hasRsvp).toBe(false);
     const maple = ListMeetupsResponse.parse((await api('riley', 'GET', `/groups/${G.maple}/meetups`)).body).meetups;
-    expect(maple.find((m) => m.id === M.weeknight)!.viewer.hasRsvp).toBe(false);
+    expect(maple.find((m) => m.id === B)!.viewer.hasRsvp).toBe(false);
     // and it is invisible to the other group's members
     expect((await api('sam', 'GET', `/meetups/${R}`)).status).toBe(404);
   });

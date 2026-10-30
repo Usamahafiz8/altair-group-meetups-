@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiError, ListMeetupsResponse, MeetupResponse, MyGroupsResponse, RsvpResponse } from '@altair/contract';
 import {
-  api, cleanup, closeAll, createBody, fixtureGroup, fixtureMeetup, G, inDays, leaksHome, M, makeStarted, owner, U,
+  api, cleanup, closeAll, createBody, fixtureGroup, fixtureMeetup, FOUNTAIN, G, inDays, leaksHome, M, makeStarted, owner, U,
 } from './helpers';
 
 const seen: unknown[] = []; // every response body, scanned for home locations at the end
@@ -53,10 +53,19 @@ describe('reads', () => {
     expect(MyGroupsResponse.parse((await call('taylor', 'GET', '/groups')).body).groups).toEqual([]);
   });
 
+  // Seed-reading tests check properties, not exact rows: the hosted database is
+  // shared, and real use of the app adds meetups and RSVPs.
   it('group list: soonest first, members only', async () => {
     const r = await call('sam', 'GET', `/groups/${G.maple}/meetups`);
     expect(r.status).toBe(200);
-    expect(ListMeetupsResponse.parse(r.body).meetups.map((m) => m.id)).toEqual([M.saturday, M.weeknight]);
+    const list = ListMeetupsResponse.parse(r.body).meetups;
+    expect(list.every((m) => m.groupId === G.maple)).toBe(true); // nothing from another group
+    const starts = list.map((m) => Date.parse(m.startsAt));
+    expect(starts).toEqual([...starts].sort((a, b) => a - b)); // soonest first
+    const ids = list.map((m) => m.id);
+    expect(ids).toContain(M.saturday);
+    expect(ids.indexOf(M.saturday)).toBeLessThan(ids.indexOf(M.weeknight));
+    expect(ids).not.toContain(M.riverside);
   });
 
   it('a group with no meetups: empty list for its member, 404 for others', async () => {
@@ -77,16 +86,18 @@ describe('reads', () => {
   });
 
   it('detail: attendees and viewer flags per caller', async () => {
-    const sam = MeetupResponse.parse((await call('sam', 'GET', `/meetups/${M.saturday}`)).body).meetup;
+    // Same shape as "Saturday morning loop": Avery's, Jordan and Riley going.
+    const id = await fixtureMeetup({ creator: 'avery', rsvps: ['jordan', 'riley'] });
+    const sam = MeetupResponse.parse((await call('sam', 'GET', `/meetups/${id}`)).body).meetup;
     expect(sam.attendees.map((a) => a.displayName).sort()).toEqual(['Jordan Price', 'Riley Chen']);
-    expect(sam.meetingPoint).toEqual({ kind: 'exact', name: 'North gate, Linden Park', lat: 40.012046, lng: -99.984517 });
+    expect(sam.meetingPoint).toEqual({ kind: 'exact', ...FOUNTAIN });
     expect(sam.createdBy.displayName).toBe('Avery Lin');
     expect(sam.viewer).toEqual({ isCreator: false, hasRsvp: false, canRsvp: true, canCancel: false, canEdit: false });
 
-    const jordan = MeetupResponse.parse((await call('jordan', 'GET', `/meetups/${M.saturday}`)).body).meetup;
+    const jordan = MeetupResponse.parse((await call('jordan', 'GET', `/meetups/${id}`)).body).meetup;
     expect(jordan.viewer).toMatchObject({ hasRsvp: true, canRsvp: false, canCancel: false });
 
-    const avery = MeetupResponse.parse((await call('avery', 'GET', `/meetups/${M.saturday}`)).body).meetup;
+    const avery = MeetupResponse.parse((await call('avery', 'GET', `/meetups/${id}`)).body).meetup;
     expect(avery.viewer).toMatchObject({ isCreator: true, canCancel: true, canEdit: true });
   });
 

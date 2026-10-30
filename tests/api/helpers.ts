@@ -91,16 +91,23 @@ export const createBody = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+export const FOUNTAIN = { name: 'Fountain plaza, Town Green', lat: 39.999134, lng: -99.999461 };
+
 // Owner-created fixture: a Maple meetup by `creator`, optional RSVPs.
+// Tests about a persona's role use fixtures, never the shared seed rows, so
+// real use of the app (extra meetups, RSVPs) cannot change their outcome.
 export async function fixtureMeetup({
   creator = 'avery' as Persona,
   group = G.maple as string,
   rsvps = [] as Persona[],
   title = `${TEST_TAG} fixture`,
+  place = FOUNTAIN,
+  inDays = 5,
 } = {}): Promise<string> {
   const [row] = await owner<{ id: string }[]>`
     insert into public.meetups (group_id, created_by, title, starts_at, meeting_point_name, meeting_point_lat, meeting_point_lng)
-    values (${group}, ${U[creator]}, ${title}, now() + interval '5 days', 'Fountain plaza, Town Green', 39.999134, -99.999461)
+    values (${group}, ${U[creator]}, ${title}, now() + make_interval(days => ${inDays}),
+            ${place.name}, ${place.lat}, ${place.lng})
     returning id`;
   for (const who of rsvps) {
     await owner`insert into public.rsvps (meetup_id, user_id) values (${row!.id}, ${U[who]})`;
