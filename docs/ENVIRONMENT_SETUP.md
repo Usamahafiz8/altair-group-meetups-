@@ -32,8 +32,8 @@ Docker is not installed, so the database runs on a hosted Supabase free-tier pro
 Copy `.env.example` to `.env` and fill it in from the hosted project settings. `.env` is gitignored.
 Keys must not be pasted into the AI chat because the session log is part of the submission.
 
-`SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_PASSWORD` are used only by the CLI, the write server
-(service role is **not** used for user writes — see Phase 4) and test setup. Only `EXPO_PUBLIC_*` values
+`DATABASE_URL` (server-only) is used by the DB scripts, the endpoint server and test setup. The
+service-role key is not used anywhere (removed from `.env.example` in Phase 8). Only `EXPO_PUBLIC_*` values
 reach the app bundle.
 
 ## Repository layout

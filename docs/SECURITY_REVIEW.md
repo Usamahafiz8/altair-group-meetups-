@@ -17,8 +17,8 @@ therefore be safe against a curious or hostile member hand-crafting requests. Th
 | `anon` | no session | **nothing** (all grants revoked) | nothing |
 | `authenticated` | the app via PostgREST, member's JWT | own groups, own memberships, meetups + RSVPs of own groups, `users(id, display_name)` of self and co-members | **nothing** |
 | `meetup_writer` | the write endpoint, after verifying the JWT | inherits `authenticated` | insert meetup (6 columns), update meetup (status + editable fields), insert RSVP (`meetup_id` only), delete RSVP |
-| `service_role` | test setup only (never in the app) | Supabase default (bypasses RLS) | Supabase default |
-| `postgres` | migrations; the endpoint's connection, which drops to `meetup_writer` per transaction | owner | owner |
+| `service_role` | **not used by this slice** (the key is in no config, app or test) | Supabase default (bypasses RLS) | Supabase default |
+| `postgres` | migrations; test fixtures/cleanup; the endpoint's connection, which drops to `meetup_writer` per transaction | owner | owner |
 
 **Why the app role is read-only.** If `authenticated` could insert/update, a member could skip the
 Zod endpoint and write straight to PostgREST. RLS would still hold, but the "every write is validated

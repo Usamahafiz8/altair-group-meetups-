@@ -7,7 +7,9 @@
     "test:hosted-checks": "npm run check:access:remote -w tests && npm run check:postgrest -w tests",
     "typecheck": "npm run typecheck -w @altair/contract && npm run typecheck -w @altair/server && npm run typecheck -w tests && npm run typecheck -w @altair/app",
     "server": "npm start -w @altair/server",
-    "app": "npm run android -w @altair/app"
+    "app": "npm run android -w @altair/app",
+    "db:status": "node scripts/db.mjs status",
+    "db:push": "node scripts/db.mjs push"
   },
   "workspaces": [
     "packages/*",
