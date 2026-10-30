@@ -2,6 +2,7 @@
   "name": "@altair/contract",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Shared Zod request/response schemas for the meetups endpoints and the React Native app.",
   "main": "src/index.ts",
   "types": "src/index.ts",

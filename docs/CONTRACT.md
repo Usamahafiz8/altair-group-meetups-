@@ -57,9 +57,10 @@ so the app does not re-derive permissions — it only decides which buttons to s
 |---|---|---|
 | `validation_error` | 400 | schema failure |
 | `unauthorized` | 401 | missing / invalid / expired token |
-| `not_found` | 404 | no such meetup **or not visible to you** (outsider, non-creator cancel/edit) — never confirms existence |
-| `meetup_cancelled` | 409 | RSVP / cancel / edit on a cancelled meetup (members only) |
-| `meetup_started` | 409 | RSVP to a started meetup |
+| `forbidden` | 403 | a group member who is not the creator tries to cancel / edit (they can already see the meetup) |
+| `not_found` | 404 | no such meetup **or not visible to you** (outsiders) — never confirms existence |
+| `meetup_cancelled` | 409 | RSVP to, or edit of, a cancelled meetup (cancelling again is a no-op 200 for the creator) |
+| `meetup_started` | 409 | RSVP to, or edit of, a meetup that has started |
 | `internal` | 500 | anything else (no internals in the message) |
 
 ## Tests
