@@ -5,17 +5,36 @@ import { z } from 'zod';
 
 export const Uuid = z.uuid({ error: 'must be a valid id' });
 
+// Single-line display text: no control characters (NUL cannot be stored in a
+// Postgres text column and would otherwise surface as a 500) and no unpaired
+// UTF-16 surrogates (malformed Unicode, stored as U+FFFD otherwise).
+export function isCleanText(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return false;
+    if (c >= 0xdc00 && c <= 0xdfff) return false; // low surrogate without a high one
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const next = s.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      i++; // skip the valid pair
+    }
+  }
+  return true;
+}
+
 export const Title = z
   .string({ error: 'title is required' })
   .trim()
   .min(1, { error: 'title must not be empty' })
-  .max(80, { error: 'title must be at most 80 characters' });
+  .max(80, { error: 'title must be at most 80 characters' })
+  .refine(isCleanText, { error: 'title contains characters that are not allowed' });
 
 export const PlaceName = z
   .string({ error: 'place name is required' })
   .trim()
   .min(1, { error: 'place name must not be empty' })
-  .max(120, { error: 'place name must be at most 120 characters' });
+  .max(120, { error: 'place name must be at most 120 characters' })
+  .refine(isCleanText, { error: 'place name contains characters that are not allowed' });
 
 export const Latitude = z
   .number({ error: 'latitude must be a number' })

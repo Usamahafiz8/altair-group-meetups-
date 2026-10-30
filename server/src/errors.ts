@@ -40,8 +40,10 @@ export function fromDatabase(e: unknown): ApiFailure {
       { path: 'startsAt', message: 'start time must be in the future' },
     ]);
   }
-  // Remaining CHECK / NOT NULL violations: the schema should have caught them.
-  if (e.code === '23514' || e.code === '23502') {
+  // Remaining CHECK / NOT NULL violations and text Postgres cannot store
+  // (22021 invalid byte sequence, 22P05 untranslatable character): the schema
+  // should have caught them; never let them become a 500.
+  if (['23514', '23502', '22021', '22P05'].includes(e.code!)) {
     return new ApiFailure('validation_error', 'Invalid request');
   }
   throw e;

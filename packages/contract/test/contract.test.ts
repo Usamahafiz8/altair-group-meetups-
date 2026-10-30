@@ -105,6 +105,23 @@ describe('CreateMeetupRequest', () => {
     expect(JSON.stringify(issuesOf(r))).toContain(key);
   });
 
+  it.each([
+    ['NUL byte', 'walk\u0000now'],
+    ['newline', 'line one\nline two'],
+    ['tab', 'a\tb'],
+    ['DEL', 'a\u007fb'],
+    ['unpaired high surrogate', 'walk \ud800'],
+    ['unpaired low surrogate', '\udc00 walk'],
+  ])('rejects %s in title and place name', (_n, text) => {
+    expect(issuesOf(CreateMeetupRequest.safeParse({ ...valid(), title: text })).map((i) => i.path)).toContain('title');
+    const place = CreateMeetupRequest.safeParse({ ...valid(), meetingPoint: { ...valid().meetingPoint, name: text } });
+    expect(issuesOf(place).map((i) => i.path)).toContain('meetingPoint.name');
+  });
+
+  it.each(['Café walk 🐕', 'Ünter den Linden', 'Парк', 'حديقة', '公园散步'])('accepts real-world text %j', (title) => {
+    expect(CreateMeetupRequest.safeParse({ ...valid(), title }).success).toBe(true);
+  });
+
   it('rejects unexpected keys inside meetingPoint', () => {
     const r = CreateMeetupRequest.safeParse({ ...valid(), meetingPoint: { ...valid().meetingPoint, home_lat: 1 } });
     expect(r.success).toBe(false);
