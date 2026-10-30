@@ -102,6 +102,7 @@ Sign in with any seed account; every password is `altair-fixture-pass`:
 | Symptom | Fix |
 |---|---|
 | `db:push` / server: `hostname resolving error` for `db.<ref>.supabase.co` | Use the Session pooler string for `DATABASE_URL` (the direct host is IPv6-only) |
+| Server refuses to start: "use the Session pooler (port 5432)" | `DATABASE_URL` is the Transaction pooler string (6543); copy the **Session** pooler string instead |
 | Server: `EADDRINUSE :8787` | Another server is still running; stop it or change `API_PORT` (and `EXPO_PUBLIC_API_URL`) |
 | App: "Can't reach the meetups server" | Server not running, or `EXPO_PUBLIC_API_URL` wrong for your device; restart `npm run app` after editing `.env` |
 | App: "App not configured" | `EXPO_PUBLIC_*` missing in `.env`; restart Metro |

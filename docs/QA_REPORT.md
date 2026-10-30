@@ -61,3 +61,69 @@ Found while writing the screens (before the run):
 `npm test` green (contract 51, offline 44 + 77, hosted API 104); `npm run typecheck` green for contract,
 server, tests and app; `expo export --platform android` bundles (3.9 MB Hermes); the bundle contains the
 anon key and API URL only.
+
+## Phase 8 — final QA from a clean start (2026-10-30)
+
+### Clean-start run (README followed literally)
+
+| Step | Result |
+|---|---|
+| `git clone` into an empty folder | no `.env` in the clone (correct); copying `.env` is the only manual step |
+| `npm install` (from lockfile) | 92 s; exactly one `react@19.3.0`; runtime `zod@4.6.7` (Expo CLI's internal zod 3 is tooling only) |
+| `npm run db:status` | works from the clone, reports up to date |
+| README sign-in `curl` | `access_token` returned |
+| `npm test`, `npm run test:hosted-checks`, `npm run typecheck` | all green (after the fixes below), run twice back to back |
+| `npm run server` + `npm run app` from the clone | server healthy; Metro bundled 1,466 modules; app opened on the emulator with the saved session |
+| `expo export --platform android` | 3.9 MB Hermes bundle; contains the anon key and API URL only |
+
+**Not done: a from-zero database rebuild of this project.** I wrote a guarded reset (it aborted unless
+the database held only this slice's objects and the 8 seed users), but the tool's safety check refused
+to run a mass delete on the hosted database without the owner's explicit go-ahead. From-zero is covered
+by: the very first `db push` (day 1) ran against a genuinely empty project, and the offline check applies
+every migration and the seed to an empty Postgres on every `npm test`. To repeat it, point `.env` at a
+new free project and run `npm run db:push`.
+
+### Repository hygiene
+
+| Check | Result |
+|---|---|
+| Secret scan of the **entire git history** (anon key, DB password, DB URL, project ref, any JWT) | none found; `.env.example` is the only tracked env file |
+| `.env.example` | removed three variables nothing reads (incl. the service-role key) |
+| `expo-doctor` | 20/20 checks passed |
+| `npm audit` | 8 findings, all in Expo build tooling: `zod` < 4.6.6 nested inside `@expo/cli` (our runtime zod is 4.6.7, outside the range), `deepmerge` ≤ 4.3.1 via `@expo/config` (no patched release exists). `npm audit fix --force` would downgrade to Expo SDK 54 and break the app. Accepted, build-time only |
+
+### Server robustness (fuzz, 22 hostile requests against the running server)
+
+Array / null / 5,000-deep JSON, `__proto__` and `constructor` keys, NUL bytes, lone surrogates, numeric
+strings, `1e400`, year 10000, SQL-shaped ids and dates, wrong content type, unknown method, 5,000-char id,
+path traversal, 7 KB bearer token, `alg: none` token, `userId` in an RSVP body, array cancel body, empty
+edit. **First run: 19/22**: NUL → 500 (×2) and a lone surrogate accepted. **After the fix: 22/22** clean
+4xx envelopes, nothing written, zero server errors logged.
+
+### Latency (dev machine → eu-north-1 pooler, raw round trip 177 ms)
+
+| | before | after |
+|---|---|---|
+| `asMember` + trivial query | 921 ms (5 round trips) | 515 ms (3) |
+| group list, sequential p50 | 1,504 ms | 573 ms |
+| detail, sequential p50 | 1,156 ms | 531 ms |
+| detail, 30 concurrent, p50 / p95 | 3,865 / 5,332 ms | 2,476 / 3,014 ms (queueing on the 10-connection pool) |
+
+Changes: list and detail are one query each; the per-request role setup is pipelined with the first query;
+prepared statements on (the Session pooler supports them; the server now refuses a Transaction-pooler
+URL at startup with a clear message). The remaining cost is distance: a server deployed in the database's
+region pays ~1 ms per round trip instead of 177 ms.
+
+### Defects found in Phase 8 (all fixed, all regression-tested)
+
+1. Test harness hit Supabase Auth's sign-in rate limit on back-to-back runs → one sign-in per run.
+2. NUL / control characters → 500; unpaired surrogates stored as U+FFFD → contract rejects them, server backstop.
+3. **Security regression introduced by my own optimisation and caught by the suite**: lazily pipelined
+   role setup ran handler queries as the owner (RLS bypassed). Fixed with `.execute()`; the existing
+   role test had a blind spot (wrong handler shape), now closed and mutation-checked.
+4. Docs: README migration count was wrong (6 → 5); service-role key wrongly described as used by tests.
+
+### Housekeeping
+
+- A mistyped scratch path created an empty folder chain `D:\Users\usama\AppData\…` (no data; the stray
+  file was removed). Removing `D:\Users` itself was blocked as a protected path; delete it manually.
