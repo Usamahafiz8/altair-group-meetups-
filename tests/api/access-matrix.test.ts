@@ -44,9 +44,9 @@ afterAll(async () => {
 });
 
 const members = [
-  ['member, not RSVPd (Sam)', 'sam', { isCreator: false, hasRsvp: false, canRsvp: true, canCancel: false }],
-  ['member, RSVPd (Jordan)', 'jordan', { isCreator: false, hasRsvp: true, canRsvp: false, canCancel: false }],
-  ['creator (Avery)', 'avery', { isCreator: true, hasRsvp: false, canRsvp: true, canCancel: true }],
+  ['member, not RSVPd (Sam)', 'sam', { isCreator: false, hasRsvp: false, canRsvp: true, canCancel: false, canEdit: false }],
+  ['member, RSVPd (Jordan)', 'jordan', { isCreator: false, hasRsvp: true, canRsvp: false, canCancel: false, canEdit: false }],
+  ['creator (Avery)', 'avery', { isCreator: true, hasRsvp: false, canRsvp: true, canCancel: true, canEdit: true }],
 ] as const;
 
 describe('spec section 6 matrix — endpoint layer', () => {
@@ -228,6 +228,8 @@ describe('started meetup (moved into the past by the owner, as the spec allows)'
     expect(r.body.error.code).toBe('meetup_started');
     const d = MeetupResponse.parse((await api('sam', 'GET', `/meetups/${S}`)).body).meetup;
     expect(d.viewer.canRsvp).toBe(false);
+    const asCreator = MeetupResponse.parse((await api('avery', 'GET', `/meetups/${S}`)).body).meetup;
+    expect(asCreator.viewer).toMatchObject({ canCancel: true, canEdit: false }); // can still cancel, not edit
     expect((await api('avery', 'PATCH', `/meetups/${S}`, { title: '[test] late' })).status).toBe(409);
     expect((await api('jordan', 'DELETE', `/meetups/${S}/rsvp`)).status).toBe(200); // withdraw still allowed
   });

@@ -90,6 +90,7 @@ export const MeetupSummary = z.object({
     hasRsvp: z.boolean(),
     canRsvp: z.boolean(), // scheduled, not started, not already attending
     canCancel: z.boolean(), // creator and still scheduled
+    canEdit: z.boolean(), // creator, scheduled, not started (bonus edit)
   }),
 });
 export type MeetupSummary = z.infer<typeof MeetupSummary>;

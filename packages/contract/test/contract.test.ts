@@ -157,7 +157,7 @@ describe('responses', () => {
     meetingPoint: { kind: 'exact', name: 'North gate, Linden Park', lat: 40.012046, lng: -99.984517 },
     createdBy: { id: 'a1000000-0000-4000-8000-000000000001', displayName: 'Avery Lin' },
     attendeeCount: 2,
-    viewer: { isCreator: false, hasRsvp: true, canRsvp: false, canCancel: false },
+    viewer: { isCreator: false, hasRsvp: true, canRsvp: false, canCancel: false, canEdit: false },
     attendees: [{ id: 'a1000000-0000-4000-8000-000000000002', displayName: 'Jordan Price' }],
   };
 

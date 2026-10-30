@@ -57,6 +57,7 @@ function toSummary(row: MeetupRow, memberId: string): MeetupSummary {
       hasRsvp: row.has_rsvp,
       canRsvp: scheduled && row.not_started && !row.has_rsvp,
       canCancel: isCreator && scheduled,
+      canEdit: isCreator && scheduled && row.not_started,
     },
   };
 }

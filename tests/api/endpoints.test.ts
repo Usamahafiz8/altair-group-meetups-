@@ -72,13 +72,13 @@ describe('reads', () => {
     expect(sam.attendees.map((a) => a.displayName).sort()).toEqual(['Jordan Price', 'Riley Chen']);
     expect(sam.meetingPoint).toEqual({ kind: 'exact', name: 'North gate, Linden Park', lat: 40.012046, lng: -99.984517 });
     expect(sam.createdBy.displayName).toBe('Avery Lin');
-    expect(sam.viewer).toEqual({ isCreator: false, hasRsvp: false, canRsvp: true, canCancel: false });
+    expect(sam.viewer).toEqual({ isCreator: false, hasRsvp: false, canRsvp: true, canCancel: false, canEdit: false });
 
     const jordan = MeetupResponse.parse((await call('jordan', 'GET', `/meetups/${M.saturday}`)).body).meetup;
     expect(jordan.viewer).toMatchObject({ hasRsvp: true, canRsvp: false, canCancel: false });
 
     const avery = MeetupResponse.parse((await call('avery', 'GET', `/meetups/${M.saturday}`)).body).meetup;
-    expect(avery.viewer).toMatchObject({ isCreator: true, canCancel: true });
+    expect(avery.viewer).toMatchObject({ isCreator: true, canCancel: true, canEdit: true });
   });
 
   it('detail for an outsider is the same 404 as a meetup that does not exist', async () => {
@@ -110,7 +110,7 @@ describe('POST /meetups (create)', () => {
     expect(m.createdBy.id).toBe(U.sam);
     expect(m.title).toBe('[test] trimmed');
     expect(m.status).toBe('scheduled');
-    expect(m.viewer).toMatchObject({ isCreator: true, canCancel: true });
+    expect(m.viewer).toMatchObject({ isCreator: true, canCancel: true, canEdit: true });
     const [row] = await owner`select created_by from public.meetups where id = ${m.id}`;
     expect(row!.created_by).toBe(U.sam);
   });
