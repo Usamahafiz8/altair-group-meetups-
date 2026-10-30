@@ -2,6 +2,12 @@
   "name": "altair-meetups",
   "private": true,
   "description": "Altair group meetups slice: Supabase migrations, shared Zod contract, write server, Expo app, access tests.",
+  "scripts": {
+    "test": "npm test -w @altair/contract && npm run check:offline -w tests && npm test -w tests",
+    "test:hosted-checks": "npm run check:access:remote -w tests && npm run check:postgrest -w tests",
+    "typecheck": "npm run typecheck -w @altair/contract && npm run typecheck -w @altair/server && npm run typecheck -w tests",
+    "server": "npm start -w @altair/server"
+  },
   "workspaces": [
     "packages/*",
     "server",
