@@ -1,6 +1,7 @@
 # Security Review
 
-Status: Phase 4 (database access control + endpoint layer). App and map sections follow.
+Status: Phase 7 (database, endpoint layer, app, location privacy). Product decision and pushback:
+[DECISIONS.md](DECISIONS.md).
 
 ## 1. Threat model in one paragraph
 
@@ -114,7 +115,21 @@ Personas covered: anon; outsider (Taylor); group-scoped outsiders (Morgan, Quinn
 - **Input limits:** 16 KB body limit; malformed JSON is a 400.
 - **Logging:** method, path, status, duration, member id only.
 
-## 9. Known limitations / follow-ups
+## 9. App and location privacy (Phases 6–7)
+
+- **Secrets:** the app bundles only `EXPO_PUBLIC_SUPABASE_URL`, the anon key and the API URL. A built
+  Android bundle was searched for the service-role key, DB password and DB URL: absent.
+- **Meeting point:** exact for every group member (decision in DECISIONS.md §1); RLS limits it to the
+  group. Tests: same exact point before/after RSVP; outsiders get 404 with no coordinates; list/detail
+  responses carry exactly the contract's keys (`tests/api/privacy.test.ts`).
+- **Home location:** column grants (§4); no reference in `server/src`, `app/src`, `packages/contract/src`
+  or any migration after the starter (static test); outbound strip parse; the app requests no location
+  permission and never reads the device position (static test). Mutation: planting `home_lat` in the
+  response builder fails the static audit, and the strip parse keeps it off the wire.
+- **App trust model:** the app only decides which buttons to show, from server-computed `viewer` flags;
+  every rule is enforced by the server and Postgres. A 401 signs the user out locally.
+
+## 10. Known limitations / follow-ups
 
 - **Co-member names**: a member can read display names of everyone in their groups, not just
   attendees. Display names are already visible in every attendee list; judged acceptable.
