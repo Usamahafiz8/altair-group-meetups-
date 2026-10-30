@@ -7,10 +7,16 @@
     "check:access": "node offline/access.check.mjs ..",
     "check:offline": "npm run check:migrations && npm run check:access",
     "check:access:remote": "node --env-file=../.env offline/access.check.mjs .. --remote",
-    "check:postgrest": "node --env-file=../.env offline/postgrest.check.mjs"
+    "check:postgrest": "node --env-file=../.env offline/postgrest.check.mjs",
+    "test": "node --env-file=../.env ../node_modules/vitest/vitest.mjs run"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "vitest": "^5.0.5",
+    "@altair/contract": "*",
+    "@altair/server": "*",
+    "typescript": "~6.0.3",
+    "jose": "^6.2.14"
   }
 }

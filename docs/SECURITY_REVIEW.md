@@ -1,7 +1,6 @@
 # Security Review
 
-Status: Phase 2 (database access control). Sections for the endpoint, app and map are added as
-those phases land.
+Status: Phase 4 (database access control + endpoint layer). App and map sections follow.
 
 ## 1. Threat model in one paragraph
 
@@ -96,7 +95,26 @@ policy uses only the definer helper.
 Personas covered: anon; outsider (Taylor); group-scoped outsiders (Morgan, Quinn); member not RSVP'd
 (Sam); member RSVP'd (Jordan); creator (Avery, Sam); multi-group (Riley).
 
-## 8. Known limitations / follow-ups
+## 8. Endpoint layer (Phase 4)
+
+- **Authentication:** ES256 access tokens verified locally against the project JWKS (signature, issuer,
+  audience, expiry). `role` must be `authenticated` and `sub` a UUID: an anon key, a service-role token or
+  a self-made `role: meetup_writer` token is rejected. Unit-tested with a local key pair (14 tests); a
+  mutation removing the role check fails 3 of them. With the real keys the legacy HS256 anon key already
+  fails on its signature, so the end-to-end anon test alone did not prove the role rule (caught in review).
+- **Authorization stays in Postgres:** every request runs as `authenticated` (reads) or `meetup_writer`
+  (writes) with the verified claims. A test asserts `current_user` / `auth.uid()` inside the transaction
+  and that the pooled connection is back to the owner afterwards, also after a failed query.
+- **No trusted ids from the body:** strict schemas reject `createdBy` / `userId` / `status`; the
+  `meetup_writer` grants do not include `created_by` / `user_id`, which default to `auth.uid()`.
+- **Errors:** outsiders always get the same 404 body as for a random id (asserted for detail, list,
+  cancel, RSVP); `forbidden` goes only to members who can already see the meetup. 500s carry no internals.
+- **Output:** every response is re-parsed with the contract's strip schema; the endpoint suite scans every
+  response body (more than 50) for home-location keys and the 16 seeded values.
+- **Input limits:** 16 KB body limit; malformed JSON is a 400.
+- **Logging:** method, path, status, duration, member id only.
+
+## 9. Known limitations / follow-ups
 
 - **Co-member names**: a member can read display names of everyone in their groups, not just
   attendees. Display names are already visible in every attendee list; judged acceptable.
