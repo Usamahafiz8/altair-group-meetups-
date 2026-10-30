@@ -18,7 +18,7 @@ app/ (Expo, Android) ──HTTPS + member JWT──▶ server/ (Node, Hono) ─�
 - **App** (`app/`): sign-in, group meetup list, create, detail with map / RSVP / withdraw / cancel, edit (bonus).
 - **Tests** (`tests/`): access matrix for the four identities, multi-group, map data, privacy, concurrency.
 
-Docs: **[submission note](docs/NOTE.md)** · [decisions, refuse-first, pushback](docs/DECISIONS.md) · [security review](docs/SECURITY_REVIEW.md) ·
+Docs: **[submission note](docs/NOTE.md)** · **[how it works](docs/HOW_IT_WORKS.md)** · [decisions, refuse-first, pushback](docs/DECISIONS.md) · [security review](docs/SECURITY_REVIEW.md) ·
 [API contract](docs/CONTRACT.md) · [test report](docs/TEST_REPORT.md) · [QA report](docs/QA_REPORT.md) ·
 [server](server/README.md) · [app](app/README.md)
 
