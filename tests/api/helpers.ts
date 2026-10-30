@@ -4,10 +4,12 @@
 // - an owner connection only for fixtures and cleanup (the spec allows test
 //   setup to write directly as the database owner, e.g. a started meetup).
 import postgres from 'postgres';
+import { inject } from 'vitest';
 import { createApp } from '../../server/src/app';
 import { createVerifier } from '../../server/src/auth';
 import { createSql } from '../../server/src/db';
 import { silentLogger } from '../../server/src/log';
+import type { Persona } from './sessions';
 
 const { SUPABASE_URL, SUPABASE_ANON_KEY, DATABASE_URL } = process.env;
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !DATABASE_URL) {
@@ -23,8 +25,8 @@ export const U = {
   casey: 'a1000000-0000-4000-8000-000000000006',
   taylor: 'a1000000-0000-4000-8000-000000000007',
   quinn: 'a1000000-0000-4000-8000-000000000008',
-} as const;
-export type Persona = keyof typeof U;
+} as const satisfies Record<Persona, string>;
+export type { Persona };
 
 export const G = {
   maple: 'b2000000-0000-4000-8000-000000000001',
@@ -52,19 +54,9 @@ export const owner = postgres(DATABASE_URL, { max: 2, prepare: false, onnotice: 
 const appSql = createSql(DATABASE_URL);
 export const app = createApp({ sql: appSql, verify: createVerifier(SUPABASE_URL), log: silentLogger });
 
-const tokens = new Map<Persona, string>();
+// Sessions come from globalSetup (sessions.ts): one sign-in per persona per run.
 export async function token(who: Persona): Promise<string> {
-  const cached = tokens.get(who);
-  if (cached) return cached;
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY!, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: `${who}@example.test`, password: 'altair-fixture-pass' }),
-  });
-  const json = (await res.json()) as { access_token?: string };
-  if (!json.access_token) throw new Error(`sign-in failed for ${who}`);
-  tokens.set(who, json.access_token);
-  return json.access_token;
+  return inject('tokens')[who];
 }
 
 export type ApiResult = { status: number; body: any };
