@@ -5,8 +5,9 @@
   "scripts": {
     "test": "npm test -w @altair/contract && npm run check:offline -w tests && npm test -w tests",
     "test:hosted-checks": "npm run check:access:remote -w tests && npm run check:postgrest -w tests",
-    "typecheck": "npm run typecheck -w @altair/contract && npm run typecheck -w @altair/server && npm run typecheck -w tests",
-    "server": "npm start -w @altair/server"
+    "typecheck": "npm run typecheck -w @altair/contract && npm run typecheck -w @altair/server && npm run typecheck -w tests && npm run typecheck -w @altair/app",
+    "server": "npm start -w @altair/server",
+    "app": "npm run android -w @altair/app"
   },
   "workspaces": [
     "packages/*",
@@ -16,5 +17,8 @@
   ],
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "react": "19.3.0"
   }
 }
