@@ -66,35 +66,37 @@ export async function myGroups(tx: Tx): Promise<Group[]> {
   return tx<Group[]>`select g.id, g.name from public.groups g order by g.name, g.id`;
 }
 
-export async function groupVisible(tx: Tx, groupId: string): Promise<boolean> {
-  const [row] = await tx`select 1 from public.groups where id = ${groupId}`;
-  return Boolean(row);
-}
-
-export async function groupMeetups(tx: Tx, groupId: string, memberId: string): Promise<MeetupSummary[]> {
-  const rows = await tx<MeetupRow[]>`
+// One query: the group row (visible only to its members, by RLS) left-joined
+// to its meetups. No row -> not your group (null); one row with a null meetup
+// -> your group, no meetups yet.
+export async function groupMeetups(tx: Tx, groupId: string, memberId: string): Promise<MeetupSummary[] | null> {
+  const rows = await tx<(MeetupRow | { id: null })[]>`
     select ${meetupColumns(tx)}
-    from public.meetups m
+    from public.groups g
+    left join public.meetups m on m.group_id = g.id
     left join public.users u on u.id = m.created_by
-    where m.group_id = ${groupId}
+    where g.id = ${groupId}
     order by m.starts_at, m.id`;
-  return rows.map((r) => toSummary(r, memberId));
+  if (rows.length === 0) return null;
+  return rows.filter((r): r is MeetupRow => r.id !== null).map((r) => toSummary(r, memberId));
 }
 
+// One query: the meetup plus its attendee list as a JSON array.
 export async function meetupDetail(tx: Tx, meetupId: string, memberId: string): Promise<MeetupDetail | null> {
-  const [row] = await tx<MeetupRow[]>`
-    select ${meetupColumns(tx)}
+  const [row] = await tx<(MeetupRow & { attendees: Person[] })[]>`
+    select ${meetupColumns(tx)},
+      coalesce((
+        select json_agg(json_build_object('id', r.user_id, 'displayName', coalesce(ru.display_name, 'Former member'))
+                        order by r.created_at, r.user_id)
+        from public.rsvps r
+        left join public.users ru on ru.id = r.user_id
+        where r.meetup_id = m.id
+      ), '[]'::json) as attendees
     from public.meetups m
     left join public.users u on u.id = m.created_by
     where m.id = ${meetupId}`;
   if (!row) return null;
-  const attendees = await tx<Person[]>`
-    select r.user_id as id, coalesce(u.display_name, 'Former member') as "displayName"
-    from public.rsvps r
-    left join public.users u on u.id = r.user_id
-    where r.meetup_id = ${meetupId}
-    order by r.created_at, r.user_id`;
-  return { ...toSummary(row, memberId), attendees };
+  return { ...toSummary(row, memberId), attendees: row.attendees };
 }
 
 // What the caller may know about a meetup, for explaining a write that

@@ -137,8 +137,9 @@ export function createApp({ sql, verify, log }: Deps) {
   app.get('/groups/:groupId/meetups', async (c) => {
     const { groupId } = parse(GroupIdParams, c.req.param());
     const meetups = await read(c, async (tx, m) => {
-      if (!(await q.groupVisible(tx, groupId))) throw new ApiFailure('not_found', 'Group not found');
-      return q.groupMeetups(tx, groupId, m.id);
+      const list = await q.groupMeetups(tx, groupId, m.id);
+      if (!list) throw new ApiFailure('not_found', 'Group not found');
+      return list;
     });
     return send(c, ListMeetupsResponse, { meetups });
   });

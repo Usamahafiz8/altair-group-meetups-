@@ -15,6 +15,18 @@ describe('asMember', () => {
     expect(row).toEqual({ role, uid: U.sam });
   });
 
+  // The shape every real handler has: await inside, several queries. A version
+  // that pipelined the role setup lazily passed the test above (whose query is
+  // returned, not awaited) while every real handler ran as the owner.
+  it.each(['authenticated', 'meetup_writer'] as const)('%s: every query of a handler that awaits inside runs as the member', async (role) => {
+    const seen = await asMember(sql, member, role, async (tx) => {
+      const [first] = await tx`select current_user as role, auth.uid() as uid`;
+      const [second] = await tx`select current_user as role, auth.uid() as uid`;
+      return [first, second];
+    });
+    expect(seen).toEqual([{ role, uid: U.sam }, { role, uid: U.sam }]);
+  });
+
   it('the role ends with the transaction (pooled connection is back to the owner)', async () => {
     await asMember(sql, member, 'meetup_writer', (tx) => tx`select 1`);
     const rows = await Promise.all(Array.from({ length: 10 }, () => sql`select current_user as role, auth.uid() as uid`));

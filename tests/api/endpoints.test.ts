@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiError, ListMeetupsResponse, MeetupResponse, MyGroupsResponse, RsvpResponse } from '@altair/contract';
 import {
-  api, cleanup, closeAll, createBody, fixtureMeetup, G, inDays, leaksHome, M, makeStarted, owner, U,
+  api, cleanup, closeAll, createBody, fixtureGroup, fixtureMeetup, G, inDays, leaksHome, M, makeStarted, owner, U,
 } from './helpers';
 
 const seen: unknown[] = []; // every response body, scanned for home locations at the end
@@ -57,6 +57,15 @@ describe('reads', () => {
     const r = await call('sam', 'GET', `/groups/${G.maple}/meetups`);
     expect(r.status).toBe(200);
     expect(ListMeetupsResponse.parse(r.body).meetups.map((m) => m.id)).toEqual([M.saturday, M.weeknight]);
+  });
+
+  it('a group with no meetups: empty list for its member, 404 for others', async () => {
+    const g = await fixtureGroup(['sam']);
+    const sam = await call('sam', 'GET', `/groups/${g}/meetups`);
+    expect(sam.status).toBe(200);
+    expect(ListMeetupsResponse.parse(sam.body).meetups).toEqual([]);
+    expect((await call('taylor', 'GET', `/groups/${g}/meetups`)).status).toBe(404);
+    expect((await call('avery', 'GET', `/groups/${g}/meetups`)).status).toBe(404);
   });
 
   it('group list for a group you are not in -> 404, same as a group that does not exist', async () => {
@@ -133,6 +142,14 @@ describe('POST /meetups (create)', () => {
     const r = await call('sam', 'POST', '/meetups', createBody(patch));
     expect(r.status).toBe(400);
     expect(r.body.error.code).toBe('validation_error');
+  });
+
+  it('rejects text Postgres cannot store with a 400, not a 500 (found by fuzzing)', async () => {
+    for (const title of ['[test] walk\u0000now', '[test] \ud800']) {
+      const r = await call('sam', 'POST', '/meetups', createBody({ title }));
+      expect(r.status).toBe(400);
+      expect(r.body.error.issues[0].path).toBe('title');
+    }
   });
 
   it('rejects malformed and missing bodies', async () => {

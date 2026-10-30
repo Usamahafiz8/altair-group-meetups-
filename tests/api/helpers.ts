@@ -115,6 +115,14 @@ export async function makeStarted(meetupId: string) {
 
 export async function cleanup() {
   await owner`delete from public.meetups where title like ${TEST_TAG + '%'}`;
+  await owner`delete from public.groups where name like ${TEST_TAG + '%'}`; // cascades memberships
+}
+
+// Owner-created group with the given members (and no meetups).
+export async function fixtureGroup(members: Persona[]): Promise<string> {
+  const [g] = await owner<{ id: string }[]>`insert into public.groups (name) values (${TEST_TAG + ' empty group'}) returning id`;
+  for (const who of members) await owner`insert into public.group_memberships (group_id, user_id) values (${g!.id}, ${U[who]})`;
+  return g!.id;
 }
 
 export async function closeAll() {
