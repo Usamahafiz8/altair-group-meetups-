@@ -1,12 +1,12 @@
 import { CreateMeetupRequest, type ErrorIssue, type MeetingPointInput } from '@altair/contract';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import type { LatLng } from 'react-native-maps';
 import type { ClientError } from '../lib/api';
 import { formatDate, formatTime } from '../lib/format';
 import { MeetupMap } from './MeetupMap';
-import { Button, Card, Field, Notice, s } from './ui';
+import { Button, Card, Field, Notice, colors, s } from './ui';
 
 export type MeetupFormValues = {
   title: string;
@@ -17,31 +17,33 @@ export type MeetupFormValues = {
 // Same rules as the server: the contract's create schema minus the group.
 const FormSchema = CreateMeetupRequest.omit({ groupId: true });
 
-type FieldKey = 'title' | 'startsAt' | 'place' | 'lat' | 'lng' | 'form';
+// The point is chosen on the map only; coordinates are never typed or shown.
+type FieldKey = 'title' | 'startsAt' | 'place' | 'point' | 'form';
 const FIELD_BY_PATH: Record<string, FieldKey> = {
   title: 'title',
   startsAt: 'startsAt',
   'meetingPoint.name': 'place',
-  'meetingPoint.lat': 'lat',
-  'meetingPoint.lng': 'lng',
+  'meetingPoint.lat': 'point',
+  'meetingPoint.lng': 'point',
   meetingPoint: 'place',
 };
 type Errors = Partial<Record<FieldKey, string>>;
 
+const NO_PIN = 'Drop a pin on the map to set the meeting point.';
 const sentence = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
 
-function errorsFrom(issues: ErrorIssue[]): Errors {
+function errorsFrom(issues: ErrorIssue[], hasPin: boolean): Errors {
   const out: Errors = {};
   for (const i of issues) {
     const key = FIELD_BY_PATH[i.path] ?? 'form';
-    out[key] ??= sentence(i.message);
+    // A coordinate error with no pin just means "pick a spot", in user terms.
+    out[key] ??= key === 'point' && !hasPin ? NO_PIN : sentence(i.message);
   }
   return out;
 }
 
-const fmtCoord = (n: number) => n.toFixed(6);
-// "" stays NaN so the schema reports "must be a number" instead of using 0.
-const toNumber = (v: string) => (v.trim() === '' ? Number.NaN : Number(v.trim().replace(',', '.')));
+// 6 decimals ≈ 0.1 m: plenty for a meeting point, and stable for edit diffs.
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
 type Props = {
   initial: { title: string; startsAt: Date; meetingPoint: MeetingPointInput | null };
@@ -55,8 +57,10 @@ export function MeetupForm({ initial, submitLabel, onSubmit, pending }: Props) {
   const [title, setTitle] = useState(initial.title);
   const [startsAt, setStartsAt] = useState(initial.startsAt);
   const [place, setPlace] = useState(initial.meetingPoint?.name ?? '');
-  const [lat, setLat] = useState(initial.meetingPoint ? fmtCoord(initial.meetingPoint.lat) : '');
-  const [lng, setLng] = useState(initial.meetingPoint ? fmtCoord(initial.meetingPoint.lng) : '');
+  const [pin, setPin] = useState<LatLng | null>(
+    initial.meetingPoint ? { latitude: initial.meetingPoint.lat, longitude: initial.meetingPoint.lng } : null,
+  );
+  const [mapTouched, setMapTouched] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [serverErrors, setServerErrors] = useState<Errors>({});
   const [iosPicker, setIosPicker] = useState<'date' | 'time' | null>(null);
@@ -64,13 +68,14 @@ export function MeetupForm({ initial, submitLabel, onSubmit, pending }: Props) {
   const values = {
     title,
     startsAt: startsAt.toISOString(),
-    meetingPoint: { name: place, lat: toNumber(lat), lng: toNumber(lng) },
+    // No pin yet: NaN fails the schema, which the form reports as "drop a pin".
+    meetingPoint: { name: place, lat: pin?.latitude ?? Number.NaN, lng: pin?.longitude ?? Number.NaN },
   };
   const result = FormSchema.safeParse(values);
   // Show client errors once the user has tried to submit; server errors until edited.
   const clientErrors =
     submitted && !result.success
-      ? errorsFrom(result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })))
+      ? errorsFrom(result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })), !!pin)
       : {};
   const errors: Errors = { ...serverErrors, ...clientErrors };
 
@@ -83,12 +88,8 @@ export function MeetupForm({ initial, submitLabel, onSubmit, pending }: Props) {
     });
   };
 
-  const picked: LatLng | null =
-    Number.isFinite(toNumber(lat)) && Number.isFinite(toNumber(lng)) ? { latitude: toNumber(lat), longitude: toNumber(lng) } : null;
-  const onMapPick = (p: LatLng) => {
-    edit(setLat, 'lat')(fmtCoord(p.latitude));
-    edit(setLng, 'lng')(fmtCoord(p.longitude));
-  };
+  const setPinFrom = edit(setPin, 'point');
+  const onMapPick = (p: LatLng) => setPinFrom({ latitude: round6(p.latitude), longitude: round6(p.longitude) });
 
   // Changing the date keeps the chosen time of day, and vice versa.
   const applyPicked = (mode: 'date' | 'time', d: Date) => {
@@ -115,12 +116,12 @@ export function MeetupForm({ initial, submitLabel, onSubmit, pending }: Props) {
     if (!result.success || pending) return;
     const err = await onSubmit(result.data);
     if (!err) return;
-    setServerErrors(err.code === 'validation_error' && err.issues.length ? errorsFrom(err.issues) : { form: err.message });
+    setServerErrors(err.code === 'validation_error' && err.issues.length ? errorsFrom(err.issues, !!pin) : { form: err.message });
   };
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" scrollEnabled={!mapTouched}>
         <Field
           label="Title"
           value={title}
@@ -166,16 +167,19 @@ export function MeetupForm({ initial, submitLabel, onSubmit, pending }: Props) {
             error={errors.place}
             hint="A public place everyone can find."
           />
-          <Text style={s.hint}>Tap the map or drag the pin, or type coordinates.</Text>
-          <MeetupMap pick={{ value: picked, onChange: onMapPick }} height={200} />
-          <View style={s.row}>
-            <View style={{ flex: 1 }}>
-              <Field label="Latitude" value={lat} onChangeText={edit(setLat, 'lat')} keyboardType="numbers-and-punctuation" placeholder="e.g. 40.0123" error={errors.lat} />
+          <MeetupMap pick={{ value: pin, onChange: onMapPick }} height={300} onTouchActive={setMapTouched} />
+          {errors.point ? (
+            <Text style={s.fieldError}>{errors.point}</Text>
+          ) : pin ? (
+            <View style={[s.row, { justifyContent: 'space-between' }]}>
+              <Text style={[s.hint, { color: colors.success, fontWeight: '600' }]}>✓ Pin placed. Tap elsewhere or drag it to move.</Text>
+              <Pressable accessibilityRole="button" onPress={() => setPinFrom(null)} hitSlop={10}>
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>Clear</Text>
+              </Pressable>
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Longitude" value={lng} onChangeText={edit(setLng, 'lng')} keyboardType="numbers-and-punctuation" placeholder="e.g. -99.9845" error={errors.lng} />
-            </View>
-          </View>
+          ) : (
+            <Text style={s.hint}>Tap the map where everyone should meet. Pinch or use + / − to zoom.</Text>
+          )}
         </Card>
 
         {errors.form ? <Notice text={errors.form} /> : null}

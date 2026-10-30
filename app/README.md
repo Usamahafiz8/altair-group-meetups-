@@ -54,5 +54,9 @@ src/components/          ui primitives, MeetupMap (view + picker), MeetupForm (c
 - **Stale state:** if an action fails because the meetup changed meanwhile (cancelled, started, gone), the
   detail reloads to the server's current view.
 - **Session expiry:** any 401 signs out locally and the sign-in screen explains why.
+- **Choosing the meeting point:** map only, no coordinate fields. Tap anywhere to drop the pin, tap again
+  or drag it to move, **Clear** to remove; + / − and pinch to zoom; the form stops scrolling while a finger
+  is on the map. Without a pin the form says "Drop a pin on the map to set the meeting point." Edit opens
+  centred on the existing pin. Points are rounded to 6 decimals (~0.1 m), so an untouched pin is "no change".
 - **Map:** shows exactly the point the server returns (`meetingPoint.kind === "exact"`), never a home
   location (the app never receives one). After RSVP the detail is re-fetched from the server.

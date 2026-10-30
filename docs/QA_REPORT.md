@@ -17,7 +17,7 @@ UI hierarchy and screenshots.
 | 7 | Withdraw | Back to RSVP button, 2 attendees |
 | 8 | Back from detail | Returns to the list (refreshed on focus) |
 | 9 | Create, empty submit | Error under title, place, latitude, longitude + "Please fix the highlighted fields." |
-| 10 | Create, valid (map tap sets coordinates) | Field errors clear while typing; lands on the new meetup's detail; Back goes to the list, not the form |
+| 10 | Create, valid (map tap sets the point) | Field errors clear while typing; lands on the new meetup's detail; Back goes to the list, not the form |
 | 11 | Creator view | "Organised by Sam Okafor (you)", Edit + Cancel shown, empty attendees "No one has RSVP'd yet." |
 | 12 | Edit with no changes | "Nothing has changed." (no request sent) |
 | 13 | Edit title | Saved, detail shows the new title |
@@ -127,3 +127,22 @@ region pays ~1 ms per round trip instead of 177 ms.
 
 - A mistyped scratch path created an empty folder chain `D:\Users\usama\AppData\…` (no data; the stray
   file was removed). Removing `D:\Users` itself was blocked as a protected path; delete it manually.
+
+## Map picker redesign (after Phase 9, on request)
+
+Feedback: typed latitude/longitude fields are not something a member should deal with; picking the point
+should be easier. Change: coordinate fields removed; 300 px map with tap-to-drop / tap-or-drag-to-move,
++ / − zoom buttons, an on-map hint until a pin exists, "✓ Pin placed … Clear" once it does, and the form's
+scroll paused while touching the map. Verified on the emulator:
+
+| Check | Result |
+|---|---|
+| Submit without a pin | "Drop a pin on the map to set the meeting point." under the map (no latitude jargon) |
+| Tap the map | blue pin at the tap; error clears; "✓ Pin placed. Tap elsewhere or drag it to move." + Clear |
+| Clear | pin removed, hint back |
+| Create with the pin | detail shows the meetup; stored point rounded to 6 decimals |
+| Edit | map opens centred on the existing pin |
+| Edit, save without touching anything | "Nothing has changed." (rounding keeps an untouched pin equal) |
+| Edit, move pin, save | saved, back to the detail |
+
+The test meetup was deleted afterwards.
